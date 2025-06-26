@@ -1,0 +1,193 @@
+you can use your existing Azure SQL database. The process involves modifying the Teams Toolkit's infrastructure-as-code (Bicep) files to reference your existing database instead of creating a new one.
+
+The standard Teams Toolkit approach is to provision a new database as part of the deployment. To use your existing database, you will adapt this process by providing the connection details of your database as parameters.
+
+1. Modify the Bicep File to Use Your Existing Database
+You need to edit the infra/azure.bicep file in your project. Instead of adding resource declarations to create a new SQL server and database, you will add parameters that hold the information for your existing ones.
+
+Add Parameters: At the top of your infra/azure.bicep file, add parameters for your existing database's server name and database name.
+
+text
+@description('The name of your existing SQL logical server.')
+param serverName string = 'your-existing-server-name'
+
+@description('The name of your existing SQL Database.')
+param sqlDBName string = 'your-existing-database-name'
+Replace the placeholder values with the actual names of your Azure SQL server and database.
+
+Remove New Resource Declarations: If your azure.bicep file contains resource sqlServer 'Microsoft.Sql/servers...' and resource sqlDB 'Microsoft.Sql/servers/databases...' blocks from a previous attempt, remove them, as you will not be creating new database resources.
+
+2. Connect Your App Service to the Existing Database
+Now, configure your application's computing resource (the App Service) to use the parameters you just defined.
+
+Locate the App Service Resource: Find the resource webApp 'Microsoft.Web/sites@... block in your azure.bicep file.
+
+Update App Settings: Within the properties.siteConfig.appSettings array, add or modify the settings to point to your existing database. The key is to manually construct the server endpoint.
+
+text
+resource webApp 'Microsoft.Web/sites@2021-02-01' = {
+  //... existing properties
+  properties: {
+    serverFarmId: serverfarm.id
+    siteConfig: {
+      appSettings: [
+        // ... other app settings
+        {
+          name: 'SQL_SERVER_ENDPOINT'
+          value: '${serverName}.database.windows.net' // Use the serverName parameter here
+        }
+        {
+          name: 'SQL_DATABASE_NAME'
+          value: sqlDBName // Use the sqlDBName parameter here
+        }
+        // If using managed identity (recommended), you do not need SQL_USERNAME or SQL_PASSWORD.
+      ]
+    }
+  }
+}
+3. Update Infrastructure and Code
+With the Bicep file modified, you can proceed with the standard Teams Toolkit workflow.
+
+Grant Access: Ensure the managed identity for your App Service has been granted the necessary permissions (e.g., db_datareader) inside your existing SQL database, as discussed previously.
+
+Update Connection String: In your application code, use the environment variables (process.env.SQL_SERVER_ENDPOINT, process.env.SQL_DATABASE_NAME) to build your connection string. If using a managed identity, your connection string should specify Authentication=Active Directory Default or a similar method depending on the library.
+
+Provision and Deploy: Run the Teams: Provision command in Visual Studio Code to apply the infrastructure changes, followed by the Teams: Deploy command to deploy your application code. The provision step will now configure your existing App Service with the new settings rather than creating a new database.
+
+
+Integrate Azure SQL Database with your Teams app
+Zhiyu You edited this page on Oct 26, 2023 · 9 revisions
+Azure SQL Database is an always-up-to-date, fully managed relational database service built for the cloud. You can easily build applications with Azure SQL Database and continue to use the tools, languages, and resources you're familiar with.
+
+Steps to create Azure SQL Database
+Teams Toolkit orchestrates cloud service provision and configuration with an infrastructure as code approach using a Domain Specific Language called Bicep.
+
+You can follow these steps to add Azure SQL Database to your app with bicep:
+
+Step 1: Add Azure SQL Database declaration to your bicep file
+Step 2: Add parameters for Azure SQL Database bicep snippet
+Step 3: Connect your computing resource to Azure SQL Database
+Step 4: Add code to connect to Azure SQL Database
+Step 5: Update your cloud infrastructure
+Step 1: Add Azure SQL Database declaration to your bicep file
+After you created a project using Teams Toolkit, the bicep file is usually located at infra/azure.bicep. Open this file and append following content to it. If your project is not created using Teams Toolkit, append the content to your own bicep file.
+
+@description('The name of the SQL logical server.')
+param serverName string = uniqueString('sql', resourceGroup().id)
+
+@description('The name of the SQL Database.')
+param sqlDBName string = 'SampleDB'
+
+@description('Location for all resources.')
+param location string = resourceGroup().location
+
+@description('The administrator username of the SQL logical server.')
+param administratorLogin string
+
+@description('The administrator password of the SQL logical server.')
+@secure()
+param administratorLoginPassword string
+
+resource sqlServer 'Microsoft.Sql/servers@2021-08-01-preview' = {
+  name: serverName
+  location: location
+  properties: {
+    administratorLogin: administratorLogin
+    administratorLoginPassword: administratorLoginPassword
+  }
+}
+
+resource sqlDB 'Microsoft.Sql/servers/databases@2021-08-01-preview' = {
+  parent: sqlServer
+  name: sqlDBName
+  location: location
+  sku: {
+    name: 'Standard'
+    tier: 'Standard'
+  }
+}
+
+// Allow Azure services connect to the SQL Server
+resource sqlFirewallRules 'Microsoft.Sql/servers/firewallRules@2021-08-01-preview' = {
+  parent: sqlServer
+  name: 'AllowAzure'
+  properties: {
+    endIpAddress: '0.0.0.0'
+    startIpAddress: '0.0.0.0'
+  }
+}
+
+Note: above content generates a server name based on your resource group name and sets database name to SampleDB by default. If you want to change the names, you can set additional parameters serverName and sqlDBName in step 2.
+
+back to top
+
+Step 2: Add parameters for Azure SQL Database bicep snippet
+We need to add some required parameters for the bicep snippet in step 1.
+
+Add following parameter to bicep's parameter file and set the value of administratorLogin to desired login name. For projects created using Teams Toolkit, the parameter file usually located at infra/azure.parameters.json.
+ "administratorLogin": {
+   "value": ""
+ },
+ "administratorLoginPassword": {
+   "value": "${{SQL_ADMIN_PASSWORD}}"
+ }
+Add following content to env/.env.{env_name}.user and set the value of SQL_ADMIN_PASSWORD
+SQL_ADMIN_PASSWORD=
+Note: ${{ENV_NAME}} is a special placeholder supported by Teams Toolkit, which references the value of an environment variable. You can replace the real values in azure.parameters.json with this placeholder and set the environment variable values in env/.env.{env_name}, env/.env.{env_name}.user or set to your machine's environment variable directly. The folder of .env files is controlled by environmentFolderPath property in teamsapp.yml. The folder name is env by default but may be customized after project creation.
+
+back to top
+
+Step 3: Connect your computing resource to Azure SQL Database
+There are 2 ways to connect to your Azure SQL Database in Azure: using username/password and using Azure Managed Identity.
+
+Connect using username/password
+To connect to Azure SQL Database using the traditional username/password way, you can compose the connection string based on your programming language and library, then configure the connection string to your computing resource. For example, you can configure your connection string to Azure App Service using bicep as below:
+
+resource webApp 'Microsoft.Web/sites@2021-02-01' = {
+  kind: 'app'
+  location: location
+  name: webAppName
+  properties: {
+    serverFarmId: serverfarm.id
+    siteConfig: {
+      appSettings: [
+        // other app settings...
+        {
+          name: 'SQL_SERVER_ENDPOINT'
+          value: sqlServer.properties.fullyQualifiedDomainName
+        }
+        {
+          name: 'SQL_DATABASE_NAME'
+          value: sqlDBName
+        }
+        {
+          name: 'SQL_USERNAME'
+          value: administratorLogin // this is only used for demonstration purpose. DO NOT use admin credential to connect your SQL databases
+        }
+        {
+          name: 'SQL_PASSWORD'
+          value: administratorLoginPassword // this is only used for demonstration purpose. DO NOT use admin credential to connect your SQL databases
+        }
+      ]
+    // other site configs...
+    }
+  }
+}
+Connect using Azure Managed Identity
+Managed identities provide an automatically managed identity in Microsoft Entra for applications to use when connecting to resources that support Microsoft Entra authentication.
+
+You can refer this document to understand how to connect to Azure SQL Database using Managed Identity: https://learn.microsoft.com/en-us/azure/app-service/tutorial-connect-msi-azure-database
+
+back to top
+
+Step 4: Add code to connect to Azure SQL Database
+After you included Azure SQL Database related app settings in bicep file, you can follow this tutorial to connect your app to Azure SQL Database: https://learn.microsoft.com/en-us/azure/azure-sql/database/connect-query-nodejs?view=azuresql&tabs=windows. This tutorial is for nodejs, you can use process.env.SQL_SERVER_ENDPOINT, process.env.SQL_DATABASE_NAME, process.env.SQL_USERNAME and process.env.SQL_PASSWORD to reference the app settings configured to your Azure App Service in step 3.
+
+If you are using other programming language, you can find tutorials for your programming language in the website's table of content.
+
+back to top
+
+Step 5: Update your cloud infrastructure and deploy your app
+After you updated bicep file for your project, you need to run Teams: Provision command in VS Code extension to apply your changes to bicep file.
+
+After you updated your source code, you need to run Teams: Deploy command in VS Code extension to deploy your code to cloud.

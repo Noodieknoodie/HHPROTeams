@@ -3,6 +3,11 @@ import * as fs from "fs";
 import * as https from "https";
 import * as path from "path";
 import send from "send";
+import dotenv from "dotenv";
+
+// Load environment variables
+const envFile = process.env.TEAMSFX_ENV ? `.env.${process.env.TEAMSFX_ENV}` : '.env.local';
+dotenv.config({ path: path.join(__dirname, '..', 'env', envFile) });
 
 const app = express();
 

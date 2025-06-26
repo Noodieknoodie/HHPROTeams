@@ -1,0 +1,52 @@
+# Name: Agenda_Teams_Subscription  
+Subscription ID: e2ed8f3b-7c6a-46b9-a829-65aad1898d3e  
+State: Enabled
+
+
+# ENTRA: Hohimer Wealth Management | Tenant ID: e621abc4-3baa-4b93-badc-3b99e8609963  
+Domain: HohimerWealthManagement.com | License: Microsoft Entra ID P1
+
+
+# AZURE DB
+AZURE SQL DATABASE (DEV CONFIG)
+
+Server: hohimerpro-db-server.database.windows.net,1433
+Database: HWM_401k
+Region: West US 2
+Subscription: Agenda_Teams_Subscription
+Subscription ID: e2ed8f3b-7c6a-46b9-a829-65aad1898d3e
+Resource Group: HWM_401k
+
+Authentication Method: AAD (Admin: EKnudsen@HohimerWealthManagement.com)
+Public Access: Enabled
+Firewall IP Whitelisted: Yes (1 rule)
+Connection Strings: Available in Azure Portal
+Pricing Tier: Serverless (Gen5, 1 vCore)
+Auto-pause Delay: 1 hour
+Max Storage: 32 GB
+Backups: PITR 7 days, Differential every 12 hrs
+Geo-redundant backup storage: Enabled
+Zone Redundancy: Disabled
+SQL Authentication: Not enabled (must configure manually if needed)
+
+Primary Endpoint: hohimerpro-db-server.database.windows.net
+
+
+ODBC (Includes Node.js) (SQL authentication)
+Driver={ODBC Driver 18 for SQL Server};Server=tcp:hohimerpro-db-server.database.windows.net,1433;Database=HohimerPro-401k;Uid=CloudSAddb51659;Pwd={your_password_here};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;
+
+ODBC (Includes Node.js) (Microsoft Entra password authentication)
+Driver={ODBC Driver 18 for SQL Server};Server=tcp:hohimerpro-db-server.database.windows.net,1433;Database=HohimerPro-401k;Uid={your_user_name};Pwd={your_password_here};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;Authentication=ActiveDirectoryPassword
+
+ODBC (Includes Node.js) (Microsoft Entra integrated authentication)
+Driver={ODBC Driver 18 for SQL Server};Server=tcp:hohimerpro-db-server.database.windows.net,1433;Database=HohimerPro-401k;Uid={your_user_name};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;Authentication=ActiveDirectoryIntegrated
+
+---
+
+The authentication relies entirely on two things:
+
+Your HohimerPro App Service has a system-assigned managed identity enabled .
+
+You have granted that identity access within the Azure SQL database by running CREATE USER [HohimerPro] FROM EXTERNAL PROVIDER; and assigning it roles .
+
+DONE 

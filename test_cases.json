@@ -1,0 +1,263 @@
+{
+  "fee_calculations": [
+    {
+      "input": {
+        "fee_type": "flat",
+        "flat_rate": 500.0,
+        "percent_rate": null,
+        "total_assets": 100000
+      },
+      "expected_output": 500.0,
+      "test_name": "flat_fee_monthly",
+      "description": "Flat fee contract should ignore assets"
+    },
+    {
+      "input": {
+        "fee_type": "percentage",
+        "flat_rate": null,
+        "percent_rate": 0.0025,
+        "total_assets": 100000
+      },
+      "expected_output": 250.0,
+      "test_name": "percentage_fee_with_assets",
+      "description": "Percentage fee with assets provided"
+    },
+    {
+      "input": {
+        "fee_type": "percentage",
+        "flat_rate": null,
+        "percent_rate": 0.0025,
+        "total_assets": null
+      },
+      "expected_output": null,
+      "test_name": "percentage_fee_no_assets",
+      "description": "Percentage fee without assets should return None"
+    }
+  ],
+  "period_calculations": [
+    {
+      "input": {
+        "actual_fee": 1500,
+        "applied_start_month": 1,
+        "applied_start_month_year": 2024,
+        "applied_end_month": 3,
+        "applied_end_month_year": 2024,
+        "applied_start_quarter": null,
+        "applied_end_quarter": null
+      },
+      "expected_output": [
+        {
+          "period": "January 2024",
+          "amount": 500.0
+        },
+        {
+          "period": "February 2024",
+          "amount": 500.0
+        },
+        {
+          "period": "March 2024",
+          "amount": 500.0
+        }
+      ],
+      "test_name": "monthly_split_3_months",
+      "description": "Split payment across 3 months"
+    },
+    {
+      "input": {
+        "actual_fee": 1000,
+        "applied_start_quarter": 1,
+        "applied_start_quarter_year": 2024,
+        "applied_end_quarter": 2,
+        "applied_end_quarter_year": 2024,
+        "applied_start_month": null,
+        "applied_end_month": null
+      },
+      "expected_output": [
+        {
+          "period": "Q1 2024",
+          "amount": 500.0
+        },
+        {
+          "period": "Q2 2024",
+          "amount": 500.0
+        }
+      ],
+      "test_name": "quarterly_split_2_quarters",
+      "description": "Split payment across 2 quarters"
+    },
+    {
+      "input": {
+        "actual_fee": 2000,
+        "applied_start_month": 11,
+        "applied_start_month_year": 2023,
+        "applied_end_month": 2,
+        "applied_end_month_year": 2024,
+        "applied_start_quarter": null,
+        "applied_end_quarter": null
+      },
+      "expected_output": [
+        {
+          "period": "November 2023",
+          "amount": 500.0
+        },
+        {
+          "period": "December 2023",
+          "amount": 500.0
+        },
+        {
+          "period": "January 2024",
+          "amount": 500.0
+        },
+        {
+          "period": "February 2024",
+          "amount": 500.0
+        }
+      ],
+      "test_name": "monthly_split_cross_year",
+      "description": "Split payment across year boundary"
+    }
+  ],
+  "split_payment_detection": [
+    {
+      "input": {
+        "applied_start_month": 1,
+        "applied_start_month_year": 2024,
+        "applied_end_month": 1,
+        "applied_end_month_year": 2024,
+        "applied_start_quarter": null,
+        "applied_end_quarter": null
+      },
+      "expected_output": {
+        "is_split": false,
+        "periods": null
+      },
+      "test_name": "single_month_payment"
+    },
+    {
+      "input": {
+        "applied_start_month": 1,
+        "applied_start_month_year": 2024,
+        "applied_end_month": 3,
+        "applied_end_month_year": 2024,
+        "applied_start_quarter": null,
+        "applied_end_quarter": null
+      },
+      "expected_output": {
+        "is_split": true,
+        "periods": [
+          {
+            "period": "January 2024",
+            "amount": 0.0
+          },
+          {
+            "period": "February 2024",
+            "amount": 0.0
+          },
+          {
+            "period": "March 2024",
+            "amount": 0.0
+          }
+        ]
+      },
+      "test_name": "split_monthly_payment"
+    },
+    {
+      "input": {
+        "applied_start_quarter": 1,
+        "applied_start_quarter_year": 2024,
+        "applied_end_quarter": 1,
+        "applied_end_quarter_year": 2024,
+        "applied_start_month": null,
+        "applied_end_month": null
+      },
+      "expected_output": {
+        "is_split": false,
+        "periods": null
+      },
+      "test_name": "single_quarter_payment"
+    }
+  ],
+  "variance_calculations": [
+    {
+      "input": {
+        "actual_fee": 500,
+        "expected_fee": 500
+      },
+      "expected_output": {
+        "difference": 0,
+        "percent_difference": 0.0,
+        "status": "exact",
+        "message": "Exact Match"
+      },
+      "test_name": "exact_match"
+    },
+    {
+      "input": {
+        "actual_fee": 510,
+        "expected_fee": 500
+      },
+      "expected_output": {
+        "difference": 10,
+        "percent_difference": 2.0,
+        "status": "acceptable",
+        "message": "$10.00 (2.00%) \u2713"
+      },
+      "test_name": "acceptable_variance"
+    },
+    {
+      "input": {
+        "actual_fee": 550,
+        "expected_fee": 500
+      },
+      "expected_output": {
+        "difference": 50,
+        "percent_difference": 10.0,
+        "status": "warning",
+        "message": "$50.00 (10.00%)"
+      },
+      "test_name": "warning_variance"
+    },
+    {
+      "input": {
+        "actual_fee": 600,
+        "expected_fee": 500
+      },
+      "expected_output": {
+        "difference": 100,
+        "percent_difference": 20.0,
+        "status": "alert",
+        "message": "$100.00 (20.00%)"
+      },
+      "test_name": "alert_variance"
+    },
+    {
+      "input": {
+        "actual_fee": null,
+        "expected_fee": 500
+      },
+      "expected_output": {
+        "difference": null,
+        "percent_difference": null,
+        "status": "unknown",
+        "message": "Cannot calculate"
+      },
+      "test_name": "null_actual"
+    },
+    {
+      "input": {
+        "actual_fee": 500,
+        "expected_fee": null
+      },
+      "expected_output": {
+        "difference": null,
+        "percent_difference": null,
+        "status": "unknown",
+        "message": "Cannot calculate"
+      },
+      "test_name": "null_expected"
+    }
+  ],
+  "available_periods": [],
+  "compliance_status": [],
+  "date_calculations": []
+}

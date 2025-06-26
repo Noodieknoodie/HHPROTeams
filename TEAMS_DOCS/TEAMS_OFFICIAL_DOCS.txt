@@ -1,0 +1,877 @@
+Local storage for Teams tab application
+Michael Kubala
+5Reputation points
+Dec 17, 2024, 11:30 AM
+Hello,
+I built a tab application in Teams using the Teams Toolkit. The app is a wizard that walks the user through entering data across multiple pages. Sometimes the user needs to leave the app to go get some information, which results in them having the start the wizard all over again. Is there some way I can store their entered data in some kind of local storage? What are my options for accomplishing something like this? My users typically work in the desktop client so if there are client specific solutions, I would lean towards one that works in the desktop client.
+Thanks.
+Microsoft Teams Development
+I have the same question 
+0
+{count} votes
+Sayali-MSFT
+3,906 Reputation points• Microsoft External Staff • Moderator
+Dec 17, 2024, 11:35 PM
+Hello @Michael Kubala,
+Thank you for your inquiry about your Teams app development issue! To assist you better, could you please provide the following details?
+Reproduction Steps: Please share the steps you took to encounter the issue.
+Documentation Links: Any specific documentation you followed that relates to your problem.
+Teams Client Version: What version of the Teams client are you using?
+Code Snippets: Relevant code snippets that illustrate the issue.
+Manifest Package: If applicable, please share the manifest package for your app.
+This information will help us better understand the situation and provide a more accurate response.
+Meantime, please refer the document-https://learn.microsoft.com/en-us/microsoftteams/platform/tabs/how-to/Build-a-dashboard-tab-app#build-a-dashboard-tab-app
+====
+Technical Guide: Integrating Azure SQL with Your Teams App
+For your 401(k) payment manager app (React/Python stack), follow this step-by-step implementation:
+1. Provision Azure SQL Database
+Bicep Template (infra/azure.bicep)
+text
+param serverName string = uniqueString('sql', resourceGroup().id)
+param sqlDBName string = 'HohimerProDB'
+param location string = resourceGroup().location
+param administratorLogin string
+@secure() param administratorLoginPassword string
+resource sqlServer 'Microsoft.Sql/servers@2021-08-01-preview' = {
+  name: serverName
+  location: location
+  properties: {
+    administratorLogin: administratorLogin
+    administratorLoginPassword: administratorLoginPassword
+  }
+}
+resource sqlDB 'Microsoft.Sql/servers/databases@2021-08-01-preview' = {
+  parent: sqlServer
+  name: sqlDBName
+  location: location
+  sku: { name: 'Standard', tier: 'Standard' }
+}
+// Allow Azure services to connect
+resource sqlFirewallRules 'Microsoft.Sql/servers/firewallRules@2021-08-01-preview' = {
+  parent: sqlServer
+  name: 'AllowAzure'
+  properties: { endIpAddress: '0.0.0.0', startIpAddress: '0.0.0.0' }
+}
+Configure Parameters (infra/azure.parameters.json)
+json
+{
+  "administratorLogin": { "value": "<YOUR_ADMIN_USER>" },
+  "administratorLoginPassword": { "value": "${{SQL_ADMIN_PASSWORD}}" }
+}
+Set Environment Variable (env/.env.dev.user)
+bash
+SQL_ADMIN_PASSWORD="your_secure_password"
+2. Connect Python Backend to Azure SQL
+Install Dependencies
+bash
+pip install pyodbc
+Python Connection Code (app.py)
+python
+import pyodbc
+def get_conn():
+    return pyodbc.connect(
+        'DRIVER={ODBC Driver 18 for SQL Server};'
+        f'SERVER={os.getenv("SQL_SERVER")};'
+        f'DATABASE={os.getenv("SQL_DB")};'
+        'Authentication=ActiveDirectoryMsi;'  # Passwordless
+    )
+# Example: Fetch 401(k) transactions
+def get_transactions(user_id):
+    with get_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM Transactions WHERE user_id = ?", user_id)
+        return cursor.fetchall()
+Required Env Vars
+bash
+SQL_SERVER="your-sql-server.database.windows.net"
+SQL_DB="HohimerProDB"
+3. Secure Frontend-Backend Communication
+React (Frontend)
+javascript
+// Fetch data from Python API
+const fetchTransactions = async () => {
+  const response = await fetch('/api/transactions', {
+    headers: { 'Authorization': `Bearer ${getAccessToken()}` } // MSAL token
+  });
+  return response.json();
+};
+Python (Backend Token Validation)
+python
+from flask import request, jsonify
+import jwt
+@app.before_request
+def validate_token():
+    token = request.headers.get('Authorization')
+    try:
+        jwt.decode(token, options={"verify_signature": False})  # Validate with Azure AD
+    except jwt.InvalidTokenError:
+        return jsonify(error="Unauthorized"), 401
+4. Deploy to Azure
+Infrastructure Deployment
+bash
+azd provision  # Deploys Bicep resources
+Python Backend Deployment
+Deploy to Azure App Service with:
+bash
+az webapp up --runtime PYTHON:3.10
+React Frontend Deployment
+bash
+npm run build
+az staticwebapp deploy --source ./build
+5. Migration from SharePoint
+Data Pipeline Script
+python
+# Export SharePoint data → Azure SQL
+from azure.identity import DefaultAzureCredential
+from azure.sql import SqlManagementClient
+credential = DefaultAzureCredential()
+sql_client = SqlManagementClient(credential, subscription_id)
+# Use Azure Data Factory or custom script for ETL
+Critical Configurations
+Setting	Value/Requirement
+Authentication	Azure AD Managed Identity
+Network Security	Firewall: Allow Azure Services
+Database Encryption	TDE (Transparent Data Encryption) enabled by default
+Backup Retention	7-35 days (Point-in-Time Restore)
+Troubleshooting Tip: Enable Azure Monitor for query performance insights and deadlock detection.
+For full code samples:
+Python Quickstart 
+Teams Toolkit SQL Integration 
+====
+#### OFFICIAL #### READ THIS 
+Integrate Azure SQL Database with your Teams app
+Zhiyu You edited this page on Oct 26, 2023 · 9 revisions
+Azure SQL Database is an always-up-to-date, fully managed relational database service built for the cloud. You can easily build applications with Azure SQL Database and continue to use the tools, languages, and resources you're familiar with.
+Steps to create Azure SQL Database
+Teams Toolkit orchestrates cloud service provision and configuration with an infrastructure as code approach using a Domain Specific Language called Bicep.
+You can follow these steps to add Azure SQL Database to your app with bicep:
+Step 1: Add Azure SQL Database declaration to your bicep file
+Step 2: Add parameters for Azure SQL Database bicep snippet
+Step 3: Connect your computing resource to Azure SQL Database
+Step 4: Add code to connect to Azure SQL Database
+Step 5: Update your cloud infrastructure
+Step 1: Add Azure SQL Database declaration to your bicep file
+After you created a project using Teams Toolkit, the bicep file is usually located at infra/azure.bicep. Open this file and append following content to it. If your project is not created using Teams Toolkit, append the content to your own bicep file.
+@description('The name of the SQL logical server.')
+param serverName string = uniqueString('sql', resourceGroup().id)
+@description('The name of the SQL Database.')
+param sqlDBName string = 'SampleDB'
+@description('Location for all resources.')
+param location string = resourceGroup().location
+@description('The administrator username of the SQL logical server.')
+param administratorLogin string
+@description('The administrator password of the SQL logical server.')
+@secure()
+param administratorLoginPassword string
+resource sqlServer 'Microsoft.Sql/servers@2021-08-01-preview' = {
+  name: serverName
+  location: location
+  properties: {
+    administratorLogin: administratorLogin
+    administratorLoginPassword: administratorLoginPassword
+  }
+}
+resource sqlDB 'Microsoft.Sql/servers/databases@2021-08-01-preview' = {
+  parent: sqlServer
+  name: sqlDBName
+  location: location
+  sku: {
+    name: 'Standard'
+    tier: 'Standard'
+  }
+}
+// Allow Azure services connect to the SQL Server
+resource sqlFirewallRules 'Microsoft.Sql/servers/firewallRules@2021-08-01-preview' = {
+  parent: sqlServer
+  name: 'AllowAzure'
+  properties: {
+    endIpAddress: '0.0.0.0'
+    startIpAddress: '0.0.0.0'
+  }
+}
+Note: above content generates a server name based on your resource group name and sets database name to SampleDB by default. If you want to change the names, you can set additional parameters serverName and sqlDBName in step 2.
+back to top
+Step 2: Add parameters for Azure SQL Database bicep snippet
+We need to add some required parameters for the bicep snippet in step 1.
+Add following parameter to bicep's parameter file and set the value of administratorLogin to desired login name. For projects created using Teams Toolkit, the parameter file usually located at infra/azure.parameters.json.
+ "administratorLogin": {
+   "value": ""
+ },
+ "administratorLoginPassword": {
+   "value": "${{SQL_ADMIN_PASSWORD}}"
+ }
+Add following content to env/.env.{env_name}.user and set the value of SQL_ADMIN_PASSWORD
+SQL_ADMIN_PASSWORD=
+Note: ${{ENV_NAME}} is a special placeholder supported by Teams Toolkit, which references the value of an environment variable. You can replace the real values in azure.parameters.json with this placeholder and set the environment variable values in env/.env.{env_name}, env/.env.{env_name}.user or set to your machine's environment variable directly. The folder of .env files is controlled by environmentFolderPath property in teamsapp.yml. The folder name is env by default but may be customized after project creation.
+back to top
+Step 3: Connect your computing resource to Azure SQL Database
+There are 2 ways to connect to your Azure SQL Database in Azure: using username/password and using Azure Managed Identity.
+Connect using username/password
+To connect to Azure SQL Database using the traditional username/password way, you can compose the connection string based on your programming language and library, then configure the connection string to your computing resource. For example, you can configure your connection string to Azure App Service using bicep as below:
+resource webApp 'Microsoft.Web/sites@2021-02-01' = {
+  kind: 'app'
+  location: location
+  name: webAppName
+  properties: {
+    serverFarmId: serverfarm.id
+    siteConfig: {
+      appSettings: [
+        // other app settings...
+        {
+          name: 'SQL_SERVER_ENDPOINT'
+          value: sqlServer.properties.fullyQualifiedDomainName
+        }
+        {
+          name: 'SQL_DATABASE_NAME'
+          value: sqlDBName
+        }
+        {
+          name: 'SQL_USERNAME'
+          value: administratorLogin // this is only used for demonstration purpose. DO NOT use admin credential to connect your SQL databases
+        }
+        {
+          name: 'SQL_PASSWORD'
+          value: administratorLoginPassword // this is only used for demonstration purpose. DO NOT use admin credential to connect your SQL databases
+        }
+      ]
+    // other site configs...
+    }
+  }
+}
+Connect using Azure Managed Identity
+Managed identities provide an automatically managed identity in Microsoft Entra for applications to use when connecting to resources that support Microsoft Entra authentication.
+You can refer this document to understand how to connect to Azure SQL Database using Managed Identity: https://learn.microsoft.com/en-us/azure/app-service/tutorial-connect-msi-azure-database
+back to top
+Step 4: Add code to connect to Azure SQL Database
+After you included Azure SQL Database related app settings in bicep file, you can follow this tutorial to connect your app to Azure SQL Database: https://learn.microsoft.com/en-us/azure/azure-sql/database/connect-query-nodejs?view=azuresql&tabs=windows. This tutorial is for nodejs, you can use process.env.SQL_SERVER_ENDPOINT, process.env.SQL_DATABASE_NAME, process.env.SQL_USERNAME and process.env.SQL_PASSWORD to reference the app settings configured to your Azure App Service in step 3.
+If you are using other programming language, you can find tutorials for your programming language in the website's table of content.
+back to top
+Step 5: Update your cloud infrastructure and deploy your app
+After you updated bicep file for your project, you need to run Teams: Provision command in VS Code extension to apply your changes to bicep file.
+After you updated your source code, you need to run Teams: Deploy command in VS Code extension to deploy your code to cloud.
+===
+what's going on everybody welcome back to another video today we're going to be taking a look at SQL databases in [Music] Azure by now I think you all know how much I love SQL I think is one of the best skills for any data professional to have but using it in the cloud is a little bit different than using it on your local computer so in this lesson we're going to see how you can use a SQL database in Azure without further Ado let's jump on my screen and take a look all right so the first thing that we're going to do is we're going to come right in here into databases under the resources now we have a lot of different options in here and there's a ton of different databases that you can choose from and it kind of depends on what your company does I'm only going to be showing you the SQL databases but other popular ones are things like using my SQL or postrace sqle with flexible servers as well as things like Azure Cosmos DB they all have different use cases and they all have different ways uh that they are implemented but by far the most common the one that I've used the most in my career is sequ databases so let's come right in here and what we need to do is we need to create a SQL database and let's click on create SQL database and let's actually create it and then we'll see how we can use it so what we're going to do is come right down here to subscription we have to select our Resource Group which you should have already created let's create a database name let's call this Alex the analyst DB for database now we have to select a server but we haven't created a server so we need to create a new server and again again I'm going to call this uh we'll do ataa for Alex the analyst I'll call This Server it looks like this needs to be lowercase let's do ATA server and then we'll do a YT at the end have to make it unique there we go all right we're overcoming some hurdles here next we have to choose an authentication method we can use the Microsoft entra only authentication SQL and the entra authentication or just SQL authentication now what that means is is if you come in here and set your uh Microsoft entra admin you can set it as yourself and that does help if you're already signed into Azure you're going to be using it within Azure this can be very helpful it's actually kind of the default um method let's get out of here this is the default method if you come down here though you can also create an admin login and a password both of these have their you know place and sometimes you need to use both um and so just choose the one the authentication method that you want for that server for us I think we're just going to stick with the uh entra admin we can always change that if we want to so let's go ahead and we're going to select ourselves here going to select that and there we go let's go ahead and click okay and that should create our server and there it goes and now we need to finish creating our SQL database so do you want to use a SQL elastic pool if you look at this tool tip right here basically helps you manage your resources but we're not going to be looking at the elastic pools for our workload environment we're just going to choose development production is going to be a lot faster because if it's in a production environment you're going to want better speed better compute all these different things development is going to be a little bit slower we can also choose a cheaper database or a more budget friendly database so we don't have to uh choose what it gives us we can come in here and we can Define this so maybe you want to have a provision tier instead of serverless which I don't really recommend uh serverless is uh quite nice for scalability but we're just going to keep it at is but if you want to come in here and change some of this configuration you're free to do that uh just don't you know if you don't know what it is I wouldn't mess with it let's come back to the create SQL databases and then we have our backup storage redundency you can either do locally zone or Geo we're just going to stick with our local let's go ahead to review and create it's going to tell us our cost which is very very very low um if you don't even have the free $200 that they're giving you which will be uh which can be used for this it's going to cost you like a dollar uh for you know what we're going to be doing or maybe even like 10 cents uh I'm being honest let's go ahead and create this it's going to take a little bit of time to set up all these servers and all the databases and all those things and then once it is done we'll take a look all right so our deployment is complete you can come in here and look at some of the details we created SQL databases the server SQL Server SQL server and so all these things are ready to go let's go ahead and click on go to Resource and let's exit out of this all this information is just an overview of our SQL database now we have down here some of the more important things that we're going to be taking a look at we're not going to be diving into all of them because uh I'm just going to show you the most common way now we have configure access connect to application and start developing now in the real world when people are actually using these SQL databases and when they are getting in here and setting everything up you can do this in a few different ways one is you can connect to a mySQL database and this is a very common practice where they connect it to a database management system it could be my SQL workbench or a ton of others that are out there and you can do that by configuring it and you're going to get some of that information you're going to plug it in and connect it what we're going to be looking at is not that option although uh that is something that happens often I'm going to show you azure's tool for this and it's going to be open Azure data studio so we're going to open up Azure data Studio we're going to click on this right here and you're going to need to download the Azure data studio now I already have this so I'm going to come down here and go to Azure data studio and this should resemble a few different things it should resemble a little bit of Visual Studio code and or should resemble something like Microsoft SQL Server it's kind of a combination of both you have a search you have some notebooks that you can use different projects an Explorer Source control extensions it has a ton of stuff and so this was really popular when I was using Azure everybody used this um as well as sometimes we connected to mySQL databases or uh Microsoft SQL Server datab bases and just use those database Management systems but often times we would have everything in Azure data studio so let's come right up here we are going to connect now we have to specify our server name let's go back really quickly we're going to come right over here we're going to go back to uh this right here we need to select our server so this is our server it's ATA server YT uh we could even come in here into the server and we can just uh copy this if we want to but we're going to get that we have our server we have our Windows authentication type and so it can either be a SQL login a Windows authentication but we chose the Microsoft entra ID now right here is recognizing the analy Builder outlook.com that was for the course that I have on analyst builder for AWS and Azure we need to add in our Alex the analyst outlook.com so let's come in here and we need to sign into our account so let's go ahead and sign in and there you go your account was added successfully let's go back and there we go now we're signed in and we need to select our database now it's not popping up the database right away which should be called like Alex the analyst DB or something like that let's go ahead and try to connect and see what happens it looks like we're getting an error here I think let's actually come back here I think our server name is actually this one right here I just chose the actual server but this is the connection that we actually need to make so uh I'm actually quite certain about that let's go ahead and click on this and now it's saying our connection was denied since Deni I public network access is set to yes so this is something I was waiting to see because we need to configure this just a little bit so let's come over here and we need to go to configure access so we're going to select configure and it says public network access is disabled but we can enable this and then what we can do is we can add in our IP address we're going to add in your client IP V4 address and all we have to do is click save so now it's going to update and it's going to say okay you can access this let's not you know get too crazy and too wild here now we can go back and we're going to select this and we already have that selected so now you can see that we have our two databases we have the master which is the one that you're going to get and then we have the one that we actually created so all of that to show that you do have to configure a few things make sure you're doing it properly and now we can come down here and we can connect to it and so now right in here and come into our tables we don't have any tables but we can come into these tables and Views and all of these different things now we can actually use this so now we are connected to our resource we're connected to our server and we can actually access the databases create them do all of our quering all of our uh things that we need to do with our data and we have all these options on the left hand side now this isn't an Azure data Studio tutorial uh but there's tons of stuff that you can do in here so if you've used something Azure data Studio or if you've used Microsoft SQL Server this should seem really familiar you should feel right at home now I want you to be able to actually use this I don't just want this to be something pretty so I need to show you one other thing that you need to do let's go ahead and try to create a table here right down here we have this script create new table we can keep it new table just with the one column uh it doesn't really matter let's just say this is ready to go let's go ahead and publish these changes then we're going to come down here and we're going to update our database now we can come over here and we have a new table so we can actually uh open this up we'll select the top 1,000 and of course we don't have any data in it but uh we have a working table so now this table is being stored on a server in a cloud and this is great so if you've ever used something like Microsoft SLE server you have all these tables and databases and all these things you're working with that's how it's actually used in the real world except you'd probably see get ton more tables you have access to a bunch of different servers for different clients and different uh data that worked perfect and what you can now do is let's do crln just get a new query window available I'm going to paste in here just like this um we're already selecting our database we don't have to say use this database go I'm just you know that's what I'm used to so I'm going to keep it in there uh for any you know if you have put this in a story procedure or something like that I don't want to fail out but this is just a super simple table um and we're going to go ahead and run this looks like that should be done let's refresh or actually refresh this this table and we have this product so let's open this up and now we have data in here this are little under uh underlined in red sometimes if you do control control alt R it'll refresh it or maybe it's control shift R that's okay it'll get rid of it eventually it just doesn't recognize it uh yet but it will um so anyways we have our data in here and now we can write regular queries and so uh this isn't a SQL lesson I'm not going to show you how to write SQL but I have hundreds of other lessons and courses on how to learn SQL and so this is uh kind of the nuts and bolts of how you set everything up and this is how people actually use it so this shouldn't be too intimidating if you know how to use MySQL workbench or Microsoft SQL server and so uh that is really awesome now if we come back here we're just going to take a look at a few more things this is just within our server but we don't want to look um at our server we want to go back to our database we're within our SQL database right here we were to looked at a little bit of configuration and aure data Studio again remember if you need to uh connect it to my SQL or something like that now just within the SQL database there are a few other things that you can do one they have something called a query editor um where you can come in here and you can query off of let's say you have tables you can query off of in here I can assure you that almost nobody ever uses this almost ever uh this is not really something that people use it's there to kind of test connections sometimes so if you're just setting up a new server or a new so if you're just setting up a new server or new database or whatever it is you can kind of check to make sure it's working but you won't use this in your real work uh that it's just not doesn't make sense now let's come over here and take a look at this left- hand side there are some interesting things that I want to show you one is this Power Platform when you start working with a large amount of data you have a server and a database set up and you're using it you have tons of real data in there you're like okay now it's time to connect this well you can use things like powerbi power apps and Power automate all these things just kind of automatically integrate into it there's also Integrations but just knowing how you know these are actually used you most likely won't use them but just knowing kind of what these are and how they work you most likely won't use these too much for people like you and I powerbi is something that we'll probably use quite a bit and we most likely won't use monitoring too much but I will say I've had to come into the monitoring quite a bit over my years to debug a bunch of stuff so if a store procedure is failing if the database is failing and you know you need to figure it out you can come into the logs if you need to see how much compute how many resources you're using you can look at the metrics so there are some reasons to come in here typically though this is more it related this isn't as much of what a data analyst will typically do unless you work like I said in it um where they monitor a lot of those things to keep cost down and keep things running and you know going smoothly so I hope that that was helpful I really appreciate you guys watching if you have not already be sure to check out my full AWS and Azure course on analyst builder.com and and if you like this video be sure to like And subscribe below I will see you in the next video [Music] 
+ ===
+For full documentation, refer to:
+Agents Toolkit Fundamentals 
+https://learn.microsoft.com/en-us/microsoftteams/platform/toolkit/agents-toolkit-fundamentals
+Microsoft 365 Agents Toolkit Overview
+05/19/2025
+Agents Toolkit (previously known as Teams Toolkit) makes it simple to get started with app development for Microsoft Teams, Outlook, and Microsoft 365 Copilot using Visual Studio Code.
+Create new apps from project templates for common app scenarios.
+Save setup time with automated app registration and configuration.
+Run and debug to Teams, Outlook, and Copilot directly from Visual Studio Code.
+Smart defaults for hosting in Azure using infrastructure-as-code and Bicep.
+Test with different configurations such as dev, test, and prod using the environment features.
+Illustration shows the User Journey of the Agents Toolkit.
+Available for Visual Studio Code
+Agents Toolkit is available as a free extension for Visual Studio Code. To get started, see install Agents Toolkit.
+Agents Toolkit	Visual Studio Code
+Installation	Available in the Visual Studio Code Marketplace
+Build with	JavaScript, TypeScript, React, SPFx
+ Important
+Agents Toolkit doesn't support building apps for Government Community Cloud (GCC), GCC High, Department of Defense (DoD), and Teams operated by 21Vianet environments.
+Features
+The following list provides the key features of Agents Toolkit:
+Project templates
+Save time getting started with new Teams apps using the capability-focused templates for tabs, bots, message extensions, and common app scenarios.
+Screenshot shows the list of new Teams app menu to create in Visual Studio Code.
+Composable automation tasks
+Automate repetitive or tedious configuration using a composable task framework that creates app IDs, bot registrations, Microsoft Entra apps, and so on.
+Multiple environments
+Test your app with different groupings of hosted resources by creating unique configurations such as dev, test, and prod using the Environments features.
+Quick access to Teams Developer Portal
+You can access Teams Developer Portal where you can configure, publish, and manage your app. For more information, see manage your Teams apps using Developer Portal.
+Screenshot shows the Developer Portal option.
+Debug tunneling for bots
+Run and debug your bot projects using Visual Studio Code and the included Dev Tunnels features.
+Microsoft 365 Agents Playground
+Microsoft 365 Agents Playground (previously known as Teams App Test Tool) makes debugging bot-based apps effortless. You can chat with your bot and see its messages and Adaptive Cards as they appear in Teams. You don’t need a Microsoft 365 developer account, tunneling, or Teams app and bot registration to use Agents Playground. For more information, see Agents Playground.
+Prerequisites for creating your Teams app
+05/19/2025
+Before you create your Microsoft Teams app project, ensure that the prerequisites are in place. You must:
+Install required tools to build your Teams app
+Prepare Accounts to build your Teams app
+Verify custom app upload permission
+Install required tools to build your Teams app
+Ensure the following requirements are met before you start building your Teams app:
+ 	Tools	Purpose	For environment type
+Required	 	 	 
+ 	Microsoft 365 Agents Toolkit (previously known as Teams Toolkit)	A Microsoft Visual Studio Code extension that creates a project scaffolding for your app. Use the latest version.	JavaScript and SPFx
+ 	Microsoft Teams	Collaborate with everyone you work with through apps for chat, meetings, and call - all in one place.	JavaScript and SPFx
+ 	Node.js	Back-end JavaScript runtime environment. For more information, see Node.js version compatibility table for project type.	JavaScript and SPFx
+ 	Node Package Manager (NPM)	Install and manage packages for use in both Node.js and ASP.NET Core applications.	JavaScript and SPFx
+ 	Microsoft Edge (recommended) or Google Chrome	A browser with developer tools.	JavaScript and SPFx
+ 	Microsoft Visual Studio Code	JavaScript, TypeScript, or SPFx build environments. Use the latest version.	JavaScript and SPFx
+Optional	 	 	 
+ 	Azure Tools for Visual Studio Code and Azure CLI	Access stored data or deploy a cloud-based back end for your Teams app in Azure.	JavaScript
+ 	React Developer Tools for Chrome or React Developer Tools for Microsoft Edge	A browser DevTools extension for the open-source React JavaScript library.	JavaScript
+ 	Microsoft Graph Explorer	A browser-based tool that lets you run a query from Microsoft Graph data.	JavaScript and SPFx
+ 	Developer Portal for Teams	A web-based portal to configure, manage, and publish your Teams app to your organization or the Teams Store.	JavaScript and SPFx
+Accounts to build your Teams app
+Ensure that you have the following accounts before you start building your Teams app:
+Accounts	Purpose	For environment type
+Microsoft 365 work or school account	Teams developer account while developing an app.	JavaScript, TypeScript, SPFx, and C# or Blazor.
+Azure account	Back-end resources on Azure.	JavaScript, TypeScript, SPFx, and C# or Blazor.
+SharePoint collection site administrator account	Deployment for hosting.	SPFx.
+Microsoft 365 developer program
+ Note
+To build Teams apps, you must have a work or school Microsoft 365 account. Microsoft 365 personal account can't be used.
+If you have a Visual Studio Enterprise or Professional subscription, both programs include a free Microsoft 365 developer subscription. It's active as long as your Visual Studio subscription is active. For more information, see Microsoft 365 developer subscription.
+If you don't have any Microsoft 365 tenant, you might qualify for a Microsoft 365 E5 developer subscription through the Microsoft 365 Developer Program; for details, see the FAQ. Alternatively, you can sign up for a 1-month free trial or purchase a Microsoft 365 plan.
+You can sign up for the developer program using one of the following account types:
+Microsoft account for personal use
+The Microsoft account provides access to the Microsoft products and cloud services, such as Outlook, Messenger, OneDrive, MSN, Xbox Live, or Microsoft 365.
+Sign up for an Outlook.com mailbox to create a Microsoft 365 account. Use it to access consumer-related Microsoft cloud services or Azure.
+Screenshot shows the personal account icon.
+Microsoft work account for business
+This account provides access to all small, medium, and enterprise business-level Microsoft cloud services. The services include Azure, Microsoft Intune, and Microsoft 365.
+When you sign up to one of these services as an organization, a cloud-based directory is automatically provisioned in Microsoft Entra ID to represent your organization.
+Screenshot shows the work account icon.
+Create a free Microsoft 365 developer account
+To create a free Microsoft 365 developer account:
+Go to the Microsoft 365 developer program.
+Select Join Now.
+Set up your administrator account subscription.
+After the completion of the subscription, the following information appears:
+Screenshot shows the M365 Account subscription options.
+Azure account
+An Azure account allows you to host a Teams app or the back-end resources for your Teams app to Azure. You can do this using Agents Toolkit in Visual Studio Code. You must have an Azure subscription in the following scenarios:
+If you already have an existing app on a different cloud provider other than Azure, and you want to integrate the app on Teams platform.
+If you want to host the back-end resources for your app using another cloud provider, or on your own servers if they're available in the public domain.
+ Note
+You can use Azure account to provision Azure resource to host your Teams app. You can create a free account in case you don't have any. If you don't use Agents Toolkit to provision and deploy, Azure account isn't required.
+SharePoint collection site administrator account
+While creating Teams app using SPFx environment, you must have a SharePoint collection site administrator account. It’s required for deploying and hosting your app on SharePoint site. If you're using a Microsoft 365 developer program tenant, you can use the administrator account you created at the time.
+Verify custom app upload permission
+After creating the app, you must load your app in Teams without distributing it. This process is known as custom app upload. Sign in to your Microsoft 365 account to view this option.
+You can verify if the app upload permission is enabled using either Visual Studio Code or Teams client.
+Verify custom app upload permission using Visual Studio Code
+Verify custom app upload permission using Teams client
+Enable custom app upload using admin center
+If the custom app upload option isn’t visible in Agents Toolkit extension in Visual Studio Code or if the option to upload a custom app isn’t available in Teams, it indicates that you don't have the required permission for custom app upload.
+You must enable custom app upload in Teams:
+If you're a Teams Administrator, enable the custom app upload setting for your tenant or organization in the Teams admin center.
+If you aren't a Teams Administrator, contact your admin to enable custom app upload.
+If you have admin rights, you can enable custom app upload:
+Sign in to Microsoft 365 admin center with your admin credentials.
+Select the  icon > Teams.
+Screenshot shows the Teams client in the left pane of Microsoft 365 Admin center.
+ Note
+It can take up to 24 hours for the Teams option to appear. You can upload your custom app to a Teams environment for testing and validation.
+Sign in to Microsoft Teams admin center with your admin credentials.
+Select the  icon > Teams apps > Setup policies.
+Screenshot shows the Setup policies under Teams apps in Microsoft 365 Admin center.
+Select Global (Org-wide default).
+Screenshot shows the Manage policies tab with Global (Org-wide default) option highlighted.
+Set Upload custom apps toggle to On.
+Screenshot shows the Upload custom apps toggle highlighted.
+Select Save.
+ Note
+It can take up to 24 hours for custom app upload to become active. In the meantime, you can use upload for your tenant to test your app. To upload the .zip package file of the app, see upload custom apps.
+Ensure that you have the app upload permission using the steps mentioned in verify custom app upload permission using Visual Studio Code or Teams client.
+Create a new Teams app
+05/19/2025
+In this section, you can learn how to create a new Microsoft Teams project using Microsoft Visual Studio Code.
+Create a new Teams project using Visual Studio Code
+You can build a new Teams project by selecting Create a New Agent/App in Microsoft 365 Agents Toolkit (previously known as Teams Toolkit). You can start from built-in Teams app templates or start from official Teams app samples in Agents Toolkit. What's more, Agents Toolkit supports to start with Outlook Add-in templates to build your own Outlook Add-ins.
+Screenshot shows the App Capability options.
+To start with Teams capabilities, you can create the following types of Teams app:
+App Types	Definition
+Scenario-based Teams apps	This group of templates are designed for particular abstracted business scenarios that your teams app can serve for. For example notification bot, command bot, SSO-enabled tab, or Dashboard tab app.
+Basic Teams apps	Basic Teams apps are just hello world Teams tab, bot, or message extension that you can create and customize based on your requirement.
+Extend Teams App across Microsoft 365	This group of Teams app can be installed and run on Outlook and Office.com.
+Create a new Teams app
+The process to create a new Teams app is similar for all types of apps.
+To create a basic Teams app:
+Open Visual Studio Code.
+Select the Microsoft 365 Agents Toolkit > Create a New Agent/App > select Teams App.
+Screenshot shows the Create New Project button in the Agents Toolkit sidebar.
+In this example, select Tab as app capability.
+Screenshot shows the App Capability to select.
+Select Basic Tab as app capability.
+Screenshot shows the option to select App Feature using a Tab as Basic Tab.
+Select JavaScript as the programming language.
+Screenshot shows the programming language to select.
+Select Default folder to store your project root folder in the default location.
+Screenshot shows the default location option to select.
+Learn to change the default folder:
+Enter a suitable name for your app, such as helloworld, as the application name. Ensure that you use only alphanumeric characters. Press Enter.
+Screenshot shows where to enter the app name.
+The Teams tab app is created in a few seconds.
+Screenshot shows the app created.
+Directory structure for different app types
+Agents Toolkit provides all components for building an app. After creating the project, you can view the project folders and files under EXPLORER section.
+Directory structure for basic Teams app
+Directory structure for scenario-based Teams app
+The following example shows a basic Teams tab app directory structure:
+Folder name	Contents
+.vscode	Settings for VS Code to build and debug your Teams app.
+appPackage	App manifest (previously called Teams app manifest) file and icon files that Teams used to recognize your Teams app.
+env	Stores different environment parameters.
+infra	Azure bicep template files. Used for deploy your Teams app to Azure.
+src	Source code for the Tab capability, including your front-end app, UI components and the privacy notice, terms of use,
+src/app.js	Application entry point and express handlers for website.
+src/views/hello.html	An HTML template that is bind to the tab endpoint.
+src/static	The web server can serve static assets such as CSS and JavaScript files.
+m365agents.yml	This configuration file defines the Agents Toolkit behavior for provision, deploy, and publish lifecycle. You can customize this file to change the behavior of Agents Toolkit in each lifecycle.
+m365agents.local.yml	This overrides m365agents.yml with actions that enable local execution and debugging.
+The following example shows a basic Teams tab app directory structure:
+Folder name	Contents
+.vscode	Settings for VS Code to build and debug your Teams app.
+appPackage	App manifest (previously called Teams app manifest) file and icon files that Teams used to recognize your Teams app.
+env	Stores different environment parameters.
+infra	Azure bicep template files. Used for deploy your Teams app to Azure.
+src	Source code for the Tab capability, including your front-end app, UI components and the privacy notice, terms of use,
+src/app.js	Application entry point and express handlers for website.
+src/views/hello.html	An HTML template that is bind to the tab endpoint.
+src/static	The web server can serve static assets such as CSS and JavaScript files.
+m365agents.yml	This configuration file defines the Agents Toolkit behavior for provision, deploy, and publish lifecycle. You can customize this file to change the behavior of Agents Toolkit in each lifecycle.
+m365agents.local.yml	This overrides m365agents.yml with actions that enable local execution and debugging.
+====
+Prerequisites
+5 minutes remaining
+Ensure you install the following tools for building and deploying your apps.
+ 	Install	For using...
+Required	 	 
+ 	Visual Studio Code	JavaScript, TypeScript, or SharePoint Framework (SPFx) build environments. Use the latest version.
+ 	Microsoft 365 Agents Toolkit	Microsoft Visual Studio Code extension that creates a project scaffolding for your app. Use the latest version.
+ 	Node.js	Back-end JavaScript runtime environment. For more information, see Node.js version compatibility table for project type.
+ 	Microsoft Teams	Microsoft Teams to collaborate with everyone you work with through apps for chat, meetings, and call all in one place.
+ 	Microsoft Edge (recommended) or Google Chrome	A browser with developer tools.
+Optional	 	 
+ 	Azure Tools for Visual Studio Code and Azure CLI	Azure tools to access stored data or to deploy a cloud-based backend for your Teams app in Azure.
+ 	React Developer Tools for Chrome OR React Developer Tools for Microsoft Edge	A browser DevTools extension for the open-source React JavaScript library.
+ 	Microsoft Graph Explorer	Microsoft Graph Explorer, a browser-based tool that lets you run a query from Microsoft Graph data.
+ 	Developer Portal for Teams	Web-based portal to configure, manage, and publish your Teams app including to your organization or the Microsoft Teams Store.
+ Tip
+If you work with Microsoft Graph data, you should learn about and bookmark the Microsoft Graph Explorer. This browser-based tool allows you to query Microsoft Graph outside of an app.
+Prepare development environment
+After you install the required tools, set up the development environment.
+Install Microsoft 365 Agents Toolkit
+Microsoft 365 Agents Toolkit (previously known as Teams Toolkit) helps simplify the development process with tools to provision and deploy cloud resources for your app and publish to the Teams Store.
+You can use Agents Toolkit with Visual Studio Code or a command-line interface called Microsoft 365 Agents Toolkit CLI (previously known as TeamsFx CLI).
+Visual Studio Code
+Command Line
+Open Visual Studio Code and select Extensions (Ctrl+Shift+X or View > Extensions).
+In the search box, enter Microsoft 365 Agents Toolkit.
+Select Install.
+Screenshot shows the Agents Toolkit extension installation.
+The Microsoft 365 Agents Toolkit  icon appears in the Visual Studio Code Activity Bar.
+You can also install Agents Toolkit from the Visual Studio Code Marketplace.
+Set up your Teams development tenant
+A tenant is a space or a container for your organization in Teams, where you chat, share files, and run meetings. This space is also where you upload and test your app. Let's verify if you're ready to develop with the tenant.
+Check for upload an app option
+After creating your custom app, you must upload your app to Teams with the Upload a custom app option. Sign in to your Microsoft 365 account to check if this option is enabled.
+The following steps help you verify if you can upload apps in Teams:
+In the Teams client, select the Apps icon.
+Select Manage your apps.
+Select Upload an app.
+Look for the option to Upload a custom app. If the option is visible, you can upload custom apps.
+Screenshot shows the option to upload a custom app in Teams.
+ Note
+If you don't find the option to upload a custom app, contact your Teams administrator.
+Create a free Teams developer tenant (optional)
+If you don't have a Teams developer account, join the Microsoft 365 developer program.
+Go to the Microsoft 365 developer program.
+Select Join Now and follow the onscreen instructions.
+In the welcome screen, select Set up E5 subscription.
+Set up your administrator account. After you finish, the following screen appears:
+Screenshot shows the Microsoft 365 Developer Program.
+Sign in to Teams using the administrator account you just set up. Verify that you have the Upload a custom app option in Teams.
+Get a free Azure account
+If you want to host your app or access resources in Azure, you must have an Azure subscription. Create a free account before you begin.
+Now you've got all the tools to set up your account. Next, let's set up your development environment and start building! Select the app you want to create first.
+====
+Create project workspace for your tab app
+4 minutes remaining
+Start Microsoft Teams app development by creating your first app. This app uses the tab capability.
+Diagram shows that this app has three features. Tab is highlighted.
+In this page, you'll learn:
+How to set up a new tab project with Agents Toolkit
+About the directory structure of your app
+Create your tab project workspace
+If the prerequisites are in place, let's begin!
+ Note
+The Visual Studio Code UI shown is from Mac. Agents Toolkit version and environment might differ based on your operating system.
+Visual Studio Code
+Command line
+Open Visual Studio Code.
+Select the Microsoft 365 Agents Toolkit  icon in the Visual Studio Code Activity Bar.
+Select Create a New Agent/App > Teams App.
+Screenshots shows the location of the Create New Project link in the Teams Toolkit sidebar.
+Select Tab to create a new tab project.
+Screenshots shows the wizard to create a new project.
+Ensure that Basic Tab is selected as the app feature that you want to build in your app.
+Screenshot shows to add app feature to add to your new app.
+Select JavaScript as the programming language.
+Screenshot shows how to select the programming language.
+Select Default folder to store your project root folder in default location.
+Screenshot shows how to select default location.
+Follow the steps to change the default location:
+Select Browse.
+Screenshot shows to select browse for storage.
+Select the location for project workspace.
+Select the Select folder.
+Screenshot shows how to select-folder.
+Enter a suitable name for your app and then select Enter.
+Screenshot shows where to enter the app name.
+The Teams tab app is created in few seconds.
+Screenshot shows the app created.
+After your app is created, Agents Toolkit displays the following message:
+Screenshot shows to preview project.
+You can select Local debug to preview your project.
+A quick recap of creating a Teams app.
+Take a tour of the tab app source code
+Agents Toolkit provides all components for building an app. After creating the project, you can view the project folders and files in the Explorer in the Visual Studio Code.
+Screen shot shows the structure tab.
+Although you're free to choose any UI framework (or not to use any), this sample template code provides a scaffolding with React components.
+Among other items in this directory structure, the Toolkit maintains:
+Folder name	Contents
+.vscode	VSCode files for debugging.
+appPackage	Templates for the Teams application manifest.
+env	Name / value pairs are stored in environment files and used by m365agents.yml to customize the provisioning and deployment rules.
+infra	Templates for provisioning Azure resources.
+src/	The source code for the notification Teams application.
+src/app.js	Application entry point and express handlers for website.
+src/views/hello.html	A HTML template that is bind to the tab endpoint.
+src/static	The static assets like CSS and JavaScript files that can be served by the web server.
+m365agents.yml	Main project file describes your application configuration and defines the set of actions to run in each lifecycle stages.
+m365agents.local.yml	This overrides m365agents.yml with actions that enable local execution and debugging.
+Build and run your first tab app
+3 minutes remaining
+After you set up your project workspace with Agents Toolkit, build your tab project. You need to sign in to your Microsoft 365 account.
+Sign in to your Microsoft 365 account
+Use your Microsoft 365 account to sign in to Teams. If you're using a Microsoft 365 developer program tenant, the admin account you set up while registering is your Microsoft 365 account.
+Visual Studio Code
+Command line
+Open Visual Studio Code.
+Select the Microsoft 365 Agents Toolkit  icon in the sidebar.
+Select Sign in to M365 using your credentials.
+Your default web browser opens to let you sign in to the account.
+Close the browser when prompted and return to Visual Studio Code.
+Return to Agents Toolkit within Visual Studio Code.
+The ACCOUNTS section of the sidebar shows your Microsoft 365 account name. If custom app upload is enabled for your Microsoft 365 account, Agents Toolkit displays Custom App Upload Enabled.
+Screenshot showing where to sign in to Microsoft 365 and Azure.
+Now you're ready to build the app and run it in the local environment!
+Build and run your app locally in Visual Studio Code
+To build and run your app locally:
+From Visual Studio Code, select F5 to run the application in debug mode.
+Learn what happens when you run your app locally in the debugger.
+Screenshot showing when F5 key is pressed.
+ Note
+When you run the app for the first time, all dependencies are downloaded, and the app is built. A browser window opens when the build is complete. This process can take 3-5 minutes to complete.
+The toolkit prompts you to install a local certificate, if necessary. This certificate allows Teams to load your application from https://localhost.
+Select Yes if the following dialog appears:
+Screenshot shows the microsoft warning.
+Or select Continue, depending on your operating system:
+Screenshot showing the prompt to install an SSL certificate to enable Teams to load your application from localhost on Mac.
+Teams web client opens in a browser window.
+ Note
+If the toolkit doesn't prompt you to install a certificate, you must install the certificate manually. For more information, see Add manual certificate.
+Sign in with your Microsoft 365 account, if prompted.
+Select Add when prompted to upload the custom app onto Teams on your local machine.
+Screenshot shows to add the app to Teams.
+Congratulations, your first app is running on Teams!
+Screenshot shows the completed app
+ Note
+If you want to extend your app to Outlook and Microsoft 365, you can choose to debug your app with Outlook and Microsoft 365 from RUN AND DEBUG dropdown in Visual Studio Code.
+You can add SSO feature to retrieve the user details. You can do normal debugging activities, such as setting breakpoints, as if it were any other web application. The app supports hot reloading. If you change any file within the project, the page reloads.
+Deploy your first Teams app
+2 minutes remaining
+You've learned to create, build, and run Teams app with Tab app. The final step is to deploy your app on Azure.
+Let's deploy the first app with Tab capability on Azure using Agents Toolkit.
+Sign in to your Azure account
+Use this account to access the Microsoft Azure portal and to provision new cloud resources to support your app.
+Visual Studio Code
+Command line
+Open Visual Studio Code.
+Open the project folder in which you created the tab app.
+Select the Microsoft 365 Agents Toolkit  icon in the sidebar.
+Select Sign in to Azure using your credentials.
+ Tip
+If you have the AZURE ACCOUNT extension installed and are using the same account, you can skip this step. Use the same account as you're using in other extensions.
+Your default web browser opens to let you sign in to the account.
+Close the browser when prompted and return to Visual Studio Code.
+The ACCOUNTS section of the sidebar shows the two accounts separately. It also lists the number of usable Azure subscriptions available to you. Ensure you have at least one usable Azure subscription available. If not, sign out and use a different account.
+Congratulations, you've created a Teams app! Now let's go ahead and learn how to deploy one of the apps to Azure using Agents Toolkit.
+Deploy your app to Azure
+Deployment consists of two steps. First, necessary cloud resources are created (also known as provisioning). Then, your app's code is copied into the created cloud resources. For this tutorial, you'll deploy the tab app.
+What's the difference between Provision and Deploy?
+Visual Studio Code
+Command Line
+Select the Microsoft 365 Agents Toolkit  icon in the Visual Studio Code sidebar.
+Select Provision.
+Screenshot shows the provisioning commands.
+Select anyone of the existing subscription.
+Screenshot shows selection of existing Subscription.
+Select a resource group to use for the Azure resources.
+Screenshot shows resources for provisioning.
+ Note
+Your app is hosted using Azure resources.
+For more information, see Create resource group.
+A dialog warns you that costs may be incurred when running resources in Azure.
+Select Provision.
+Screenshot shows the provisioning of dialog.
+The provisioning process creates resources in the Azure cloud. It may take some time. You can monitor the progress by watching the dialogs in the bottom-right corner. After a few minutes, you see the following notice:
+Screenshot shows the resource successfully provisioned in the cloud.
+If you want, you can view the provisioned resources. For this tutorial, you don't need to view resources.
+The provisioned resource appears in the ENVIRONMENT section.
+Screenshot shows the provisioned resource.
+Select Deploy from the LIFECYCLE panel after provisioning is complete.
+Screenshot shows the app deploy to the cloud.
+As with provisioning, deployment takes some time. You can monitor the process by watching the dialogs in the bottom-right corner. After a few minutes, you see a completion notice.
+Now, you can use the same process to deploy your Bot and Message Extension apps to Azure.
+ Note
+Your app is hosted using Azure resources.
+Run the deployed app
+Once the provisioning and deployment steps are complete:
+Open the debug panel (Ctrl+Shift+D / ⌘⇧-D or View > Run) from Visual Studio Code.
+Select Launch Remote (Edge) from the launch configuration dropdown.
+Select the Start debugging (F5) to launch your app from Azure.
+Screenshot shows how to launch the app remotely.
+Select Add when prompted to upload the app onto Teams.
+Screenshot shows an app being installed.
+Congratulations, your first tab app is running in your Azure environment!
+Screenshot shows the message to try the app now or later.
+Congratulations!
+100% complete!
+You've done it!
+You've created a tab app.
+Now that you've learned to create a basic app, you can move on to creating more complex apps. Follow the procedures to build and deploy the app, and your app has multiple capabilities.
+You've completed the tutorial to build tab app with JavaScript.
+ Previous
+Step 5 of 5
+# IT Admins - Microsoft Teams deployment overview
+10/28/2024
+Applies to: Microsoft Teams
+ Tip
+Are you looking for information on how to install the Teams client on your PC or mobile device? Go here: Download Microsoft Teams.
+There are several options for setting up Teams. To help you find the information you need, we've split up some articles into two audiences: Small business (fewer than 50 users) and Medium/large business (more than 50 users).
+ Tip
+As a companion to this article, we recommend using the Microsoft Teams automated setup guide when signed in to the Microsoft 365 admin center. This guide will customize your experience based on your environment. To review best practices without signing in and activating automated setup features, go to the Microsoft 365 setup portal.
+Start with a pilot rollout
+If you're a larger organization, pilot Teams with a small group of early adopters so you can learn about Teams and start planning your org-wide deployment. Later, use the guidance on the Microsoft Teams Adoption site to help you roll out Teams across your organization.
+We recommend rolling out Teams in stages, workload by workload, as your organization is ready. You don't have to wait until you've completed one step before you move to the next. Some organizations might want to roll out all Teams features at once, while others might prefer a phased approach. Here are the Teams workloads, in the order we recommend rolling them out:
+Chat, teams, channels, & apps
+Meetings, webinars, and town halls
+Audio conferencing
+Cloud voice
+If you have a medium or large organization, use Advisor for Teams to help you roll out Microsoft Teams to help you plan the rollout of these workloads across your organization. The Advisor uses Teams itself to create planning tasks and assign them to owners, share documents, and enable discussions amongst your deployment team.
+See these additional resources to help you get started:
+Section	Description
+Small business setup	This article guides smaller businesses through setting up Teams. Small business might want all the core features of Teams (such as chat, teams, channels, meetings, and phone support), but don't need to plan for multiple office locations, rolling out Teams to large numbers of users, and so on.
+Enterprise setup	This article guides larger business through setting up Teams in situations where network planning, lifecycle management, and wide-scale adoption, are critical factors to successful deployment. This article also helps you understand the requirements for audio and video conferencing, and configuring Phone System and PSTN connectivity.
+Deploy Team clients	This article provides instructions for setting up the new Teams client in your organization.
+Teams training	This article provides training materials for end-users who use the Teams clients, and also for organization admins who need to manage Teams across your organization.
+Upgrade or migrate from Skype for Business Server
+If you're coming to Teams from Skype for Business Server, or if you need a hybrid configuration, you still want to follow the recommended path above for a Teams deployment, but first you need to do some extra planning. Start by reviewing the guidance in the table below that applies to your organization's profile.
+Your organization's profile	Guidance
+My organization is running Skype for Business Server, and I want to roll out Teams.	For a full-scale Teams rollout, first you need to configure hybrid connectivity between your on-premises environment and Microsoft 365. Start by reading Plan hybrid connectivity between Skype for Business Server and Microsoft 365 or Office 365.
+You should also review Upgrade to Teams.
+I don't have Skype for Business Server, but I do have an on-premises Public Switched Telephone Network (PSTN) solution. I want to roll out Teams, but I want to keep my on-premises PSTN solution.	Roll out Teams following the suggestions in this article.
+Then read Plan Direct Routing to learn about using Phone System Direct Routing to hook up your on-premises PSTN solution with Teams.
+# Set up Microsoft Teams in your small or medium business
+03/18/2025
+Applies to: Microsoft Teams
+This guide is to help IT administrators in small and medium businesses learn about and set up Teams. By default, the person who signs up for and buys a Microsoft 365 for business subscription gets admin permissions. That person can assign admin permissions to other people to help them manage Microsoft 365 for their organization.
+ Note
+If you don't know who to contact at your work or school for help, try asking the person who gave you your Microsoft 365 user account and password.
+Microsoft Teams is a digital hub that brings conversations, meetings, files, and apps together in one place. Because it’s built on Microsoft 365, businesses benefit from integrations with familiar Office apps and services.
+Microsoft Teams can help you grow your business by empowering you to:
+Meet online with customers, partners, vendors, and colleagues. Attendees don't need Teams to join a Teams meeting.
+Share availability and schedule meetups through Bookings.
+Answer customer inquiries from your website via chat.
+Make phone calls with a Teams Phone license.
+Host high-quality webinars.
+Collaborate using files, chat, and apps.
+This guide helps you get started with:
+Adding users and giving them access to Teams.
+Connecting your business’s domain to Teams.
+Syncing your existing calendar with Teams.
+Setting up Teams capabilities for your small or medium business.
+Installing Teams.
+Accessing support and sharing feedback.
+If you're looking for information on how to use Teams or train others to use Teams, see our Microsoft Adoption site or Microsoft Teams Training.
+ Tip
+If you haven't done so already, we strongly suggest that you begin your Teams deployment with a pilot rollout. A pilot rollout allows you and a few early adopters to get familiar with Teams and its features before your planning and eventual complete rollout.
+ Important
+Before you roll out Teams broadly, make sure your organization is ready by reviewing the items in: Make sure you're ready.
+Adding users and giving them access to Teams
+Each user needs a user account and license before they can sign in and access Teams. You can add new users using the Microsoft 365 admin center by following these instructions.
+If you've already set up a global or user admin account with an active Teams license, you can also use the Admin app within Teams to add users.
+ Caution
+Using a global admin account can be a security risk. When possible, we recommend using a non-global admin account.
+Install and launch the Admin app within Teams.
+Select the Add a user option on the Admin app Home page or within the Users page.
+Add a single or multiple users by entering the required information.
+Follow the prompts to buy and assign a license to the user.
+You can change a user’s license at any time by selecting a user from the Users page. You can manage the license available in your environment using the Subscriptions page in the Admin app in Teams.
+Learn more about Teams licenses at this link.
+If you want to give your users the opportunity to try Teams before they have a Teams license, you can set up Teams Exploratory. Learn more about Teams Exploratory.
+Connecting your business' domains to Teams
+When you purchase Microsoft 365, you get a default domain (For example: contoso.onmicrosoft.com). Without additional setup, your Microsoft 365 users have this default domain in their Microsoft 365 usernames (For example: jane@contoso.onmicrosoft.com).
+This default domain may create confusion if your business has an existing domain (For example: contoso.com). Connecting your domain allows your users to sign in with their existing usernames and ensures that your partners and customers see a consistent identity when they interact with you over Teams. Connecting your domain to Teams doesn't impact how your domain is used for email, your website, or other products outside of Microsoft 365.
+Learn more about the steps you need to take to connect your domain using the Integrating your business email with Microsoft Teams article. You can also follow these steps to connect your domain in the Microsoft 365 admin center.
+Synching your existing calendar with Teams
+Teams is already connected to Exchange for calendaring by default. If you use a provider other than Exchange for email and calendaring, you can set up calendar syncing with Teams by connecting your domain. This syncing allows you and your users to see all your Teams and other meetings in both calendars. It also makes sure that incoming and outgoing Teams meetings aren't missed and meeting responses like accepts and declines are received.
+For the best experience, you should connect your business’ domain before you set up calendar syncing. Follow these steps to set up calendar syncing using the Integrating your business email with Microsoft Teams article. Follow these steps to set up syncing between Google Calendar and Teams Set up calendar syncing with Google Workspace.
+Setting up Teams capabilities for your small or medium business
+There are lots of ways you can customize Teams. The following sections show you how to set up Teams to suit the needs of your business. The order in which you set up each Teams capability is up to you. Check back frequently for setup guides for new capabilities.
+Jump to the section you're interested in:
+Chat, teams, and channels
+Meetings and conferencing
+Webinars
+Teams Phone with Calling Plan
+Scheduling through Bookings
+Schedule Teams meetings from Google Calendar
+Connect with customers on your website using Live chat
+AI powered collaboration through Copilot
+File sharing
+Apps in Teams
+Chat, teams, and channels
+Chat, teams, and channels are the cornerstone of Teams. Chat lets one or more users talk to each other, share files, and meet privately. Teams, which can be visible to everyone in your organization or only to a specific audience, let the right people collaborate whatever the task or occasion, whether it's a long-running project or organizing employee onboarding materials. Channels within teams can give a focused discussion space for specific topics, projects, departments, or any other categorization that makes sense for your team.
+For details about what you should consider before rolling out chat, teams, and channels, check out Overview of teams and channels.
+You don't need to do anything else for your users to start using chat, teams, and channels. However, there are lots of options for controlling how Teams is used. You can make the changes now, or wait until you can see how people are using Teams. The Teams admin center gives you access to all of your messaging policies and settings. You can also use the Admin app within Teams to adjust the most popular settings. For more information, check out the following articles:
+Manage messaging policies in Teams
+Teams settings
+ Tip
+See how you can manage team roles, access, and messaging policies by completing the Manage Microsoft Teams module on Microsoft Learn.
+Using chats, teams, and channels to collaborate externally
+ Tip
+For more information about guest and external access, see: Use guest access and external access to collaborate with people outside your organization.
+Collaboration over chat, teams, and channels can happen with people inside and outside of your organization. Enabling external collaboration may require you to adjust your Teams policies and settings.
+With the proper setup, you can chat with Teams users outside of your business who are part of trusted Microsoft 365 organizations (For example, a customer or partner with a Microsoft 365 work or school account) or Teams and Skype users not managed by an organization (for example, a customer with a Microsoft 365 or Skype personal account). Enabling external chat doesn't open up other parts of your Teams environment to the Teams users you're chatting with, like meetings or files. Learn more about the Teams settings and policies updates needed to allow for external chats.
+If you want to give an external contact expanded access to your Teams environment, you can give them guest access. Guest access allows you to give access to teams, documents in channels, chats, and applications to people outside of your organization, while maintaining control over your business’s data. Anyone with a Microsoft 365 work, school, or personal account can be added as a guest. Learn more about turning on guest access for your environment. Once guest access is enabled, follow this guide to learn more about inviting guests to join you in Teams.
+Shared channels in Teams create collaboration spaces where you can invite people who aren’t in the team hosting the channel. Only users who are owners or members of the shared channel can access the channel. Guests can’t be added to a shared channel, but you can invite people outside of your organization to participate if they have a Teams work or school account. Learn more about setting up collaboration with external participants in a shared channel.
+Meetings and conferencing
+Meetings and conferencing let people in your organization meet online with partners, vendors, customers, and colleagues. Anyone with a Teams client can join meetings they're invited to. If an attendee doesn't have Teams, they can also join using the web client on a desktop or from the Teams mobile app from their mobile app store. Learn more about Teams meetings with external participants.
+The participants can join in the conversation without the need for a phone by using the microphone, camera, and the screen of their device. Participants can chat, make voice calls, and share video and apps with other participants using a PC or mobile device.
+There are several meetings capabilities you can use to reinforce your business's brand. Meeting themes are included with Teams Premium. They allow admins to customize the visual appearance of the prejoin and lobby screens by applying a specific theme. Meeting themes consist of your business's brand colors, a custom image to represent your branding, and your business's logo. To learn more about meeting themes in Microsoft Teams, see Meeting themes.
+Custom meeting backgrounds allow Teams Premium admins to upload custom organizational images for their users to use as virtual backgrounds during meetings. This feature helps users maintain privacy, reduce distractions, or add a touch of business brand unity to their meetings. You can use a user or group policy to assign unique backgrounds to specific individuals or departments. If you don't have Teams Premium, individual users can upload and use their own meeting backgrounds on Teams desktop. To learn more about managing custom meeting backgrounds, see Meeting backgrounds.
+Audio conferencing lets participants join to meetings using a regular phone by calling a conference phone number and entering a meeting ID. Audio conferencing is useful when a participant doesn't have a good Internet connection, the meeting is voice-only, or some other circumstance doesn't allow them to join via the Teams desktop or mobile app.
+ Note
+Learn more about audio conferencing setup and licensing requirements.
+ Tip
+Get more familiar with meetings and events by completing the Manage meetings, conferences, and events with Microsoft Teams module on Microsoft Learn.
+Meetings are enabled by default in Teams, however, you can control the meeting experience for organizers and participants. You can also set policies for what people are, and aren't, allowed to do before and during meetings. For more information, check out the following article:
+Admin quick start - Meetings and live events in Microsoft Teams
+Webinars
+Teams webinars allow you to run interactive presentations for your customers. When you set up a webinar in Teams, you can:
+Set up event registration.
+Publish speaker bios.
+Gain insight about your webinar attendance through webinar reports.
+Webinars are enabled by default in your Teams environment. Learn more about managing who can schedule webinars for your business.
+Teams Phone with Calling Plan
+Microsoft 365 Teams Phone with Calling Plan is a great solution for businesses with fewer than 300 users that gives you all the features of an office phone system. Teams Phone includes voicemail, caller ID, phone system menus, toll-free numbers, and more, without the need to manage a complex and costly on-premises phone system.
+For more information on Teams Phone with Calling Plan for small and medium businesses, see Teams Phone guidance for small and medium businesses. If you need more assistance with understanding or deploying Teams Phone, contact us here: ContactTeamsPhoneSMB@microsoft.com.
+Scheduling through Bookings
+The Microsoft Bookings functionality helps you schedule and manage appointments with your customers, clients, or colleagues. Bookings includes a web-based bookings page, which is integrated with Microsoft Outlook and Teams to optimize your calendar and give your customers the flexibility to book a time that works best for them.
+Learn more about how Bookings can help your business streamline scheduling.
+Learn more about how you can make the Bookings app for Teams available to users in your business.
+Schedule Teams meetings from Google Calendar
+You can schedule Teams meetings directly from your Google Calendar using the Teams Meeting add-on for Google Calendar. Learn more about installing the add-on. IT admins can also install the add-on from their Google Workplace Admin Console.
+Connect with customers on your website using Live chat
+Live chat allows your website’s visitors to chat with your business through a chat widget on your customer-facing website. Visitors can ask questions via your website’s chat, connecting them directly to your support team in Teams. Learn more about setting up and managing Live chat.
+AI powered collaboration through Copilot
+Copilot in Teams can:
+Help your business perform tasks faster and enhance collaboration through the power of AI.
+Help you automate tasks so that you can focus on giving your customers and partners your full attention during meetings, calls, and chat conversations.
+Summarize key discussion points in meetings and calls, including who was speaking, what they said, and where people are aligned or disagreeing.
+Suggest action items and answer any questions you have, all in real-time during or after a meeting.
+Help you rewrite and edit chat and channel messages to improve tone, length, and clarity.
+Help you find and use information buried in documents or lost in conversations by bringing together data from your documents, presentations, email, calendar, notes, and contacts.
+Use information in Teams to help you catch up or identify tasks quickly.
+Learn more about how you can enable Copilot in your Teams environment from the small business-focused Copilot adoption site or Microsoft 365 Copilot documentation.
+File sharing
+When you enable file sharing through Teams it allows your business to collaborate with partners, vendors, customers, and colleagues while protecting your business’s intellectual property and sensitive information. Files shared through Teams are owned and managed by your business rather than individuals. Users can share files from Teams channels, chats, meetings, and the OneDrive app in Teams.
+By default, sharing with people outside your organization using external access, guest access, or anonymous access is enabled, but shared channels and cross-cloud scenarios require additional configuration. Learn more about how you can enable secure sharing for vendors, partners, and customers outside your organization.
+Apps in Teams
+Apps in Teams help users bring together their business tools and services in one place where they can be used to collaborate with others. Teams apps are published by Microsoft and other companies. You can also create Teams apps specifically for your business. A few examples of apps are:
+An app to share and assign tasks to various users in a channel.
+An app that integrates with your customer management system and tracks customer leads and progress.
+An app that helps you schedule employee shifts and schedules.
+As an admin, you control which apps are permitted. You can also help automatically install apps for your users. Learn more about Teams apps and how to manage them.
+Installing Teams
+When you're ready for your users to start using Teams, they can install the Teams client on their Windows, Mac, or on their Android or iOS device. Users can download the Teams client directly from https://teams.microsoft.com/downloads.
+Users can use Teams without an app installed on their desktop using the web. Access Teams on the web from this site.
+Make sure each user in your organization has a Teams license before they can use Teams. For more information about assigning a Teams license, see Manage user access to Teams.
+Users will have the best experience joining meetings with a Teams license and application, but they aren't required. Customers or partners don't need a Teams license to join Teams meetings. Learn more about how you can enable anonymous meeting join for your Teams environment.
+ Tip
+Get recommendations on how to plan your Teams client deployment by completing the Deploy Microsoft Teams clients module on Microsoft Learn.
+If your organization uses Microsoft Endpoint Configuration Manager, Group Policy, or a third-party distribution mechanism, to deploy software to your user's computers, see Install Microsoft Teams using Microsoft Endpoint Configuration Manager.
+If you want detailed information about deploying Teams clients, see Get clients for Microsoft Teams.
+Accessing support and sharing feedback
+If you need more help setting up your Teams environment for your small business, you can reach out to our live support agents. Request support through the Teams Admin app by:
+Launching the Teams Admin app within the Teams client.
+Selecting Support in the left navigation.
+Searching for the issue you need help with.
+If the articles provided don't meet your needs, select Contact Support.
+Select a method of support and a support agent will contact you.
+If you have feedback on how we can improve the Teams experience for your small or medium business, you can share your thoughts in our Microsoft Teams – Small Business Community.
+ Important
+# Build Environments 
+https://learn.microsoft.com/en-us/microsoftteams/platform/toolkit/build-environments
+Prepare to build apps using Microsoft 365 Agents Toolkit
+05/19/2025
+Microsoft 365 Agents Toolkit (previously known as Teams Toolkit) supports different build environments for creating apps. It helps to integrate Azure Functions capabilities and cloud services in the Microsoft Teams app that you've built.
+Illustration shows the steps to prepare to build apps using Agents Toolkit.
+Build environments
+Agents Toolkit in Microsoft Visual Studio Code offers a set of environments to build your Teams app. You can choose any of the following environments:
+JavaScript or TypeScript
+SharePoint Framework (SPFx)
+Create your Teams app using JavaScript or TypeScript
+The apps built with JavaScript or TypeScript have the following advantages:
+App comes with its own UI and UX capabilities that are rich and user friendly.
+Provides quick upgrades to the existing apps.
+Distributes apps on multiple platforms, such as Android and iOS.
+Compatible for creating an app with the existing APIs.
+An app created in Agents Toolkit also supports React.
+Agents Toolkit in Visual Studio Code supports building the following apps using JavaScript or TypeScript:
+Tab app: Your tab app can have web-based content. You can have a custom tab for your web content in Teams or add Teams-specific functionality to your web content.
+Bot app: A bot can be chatbot or conversational bot that allows you to do simple and repetitive tasks, such as customer service or support staff.
+Notification bot: You can send messages in Teams channel or group or personal chat by notification bots with HTTP request.
+Command bot: You can automate repetitive tasks using a command bot. Command bot helps you to respond simple queries or commands sent in chats.
+Workflow bot: You can interact with an Adaptive Card enabled by the Adaptive Card action handler feature in the workflow bot app.
+Message extension: You can interact with your web service through buttons and forms in the Teams client.
+Create your Teams app using SPFx
+Agents Toolkit in Visual Studio Code allows you to create tab apps using SPFx. These apps have the following advantages:
+Provides easy integration with data residing in SPFx to your Teams.
+Integrates your SPFx solution with your business APIs secured with Microsoft Entra ID.
+Gives access to various open-source tools.
+Creates powerful applications that can deliver a great UX.
+Integrates with other Microsoft 365 workloads easily.
+Delivers flexibility to host applications wherever needed.
+Support for Azure Functions
+You can use Agents Toolkit to integrate Azure Functions capabilities while building apps. You can focus on the pieces of code that matter, and Azure Functions handles the rest. Azure Functions provides "compute on-demand" in two significant ways:
+Allows implementing system's logic into your readily available blocks of code. These blocks are called functions.
+Meets the requirement with as many resources and function instances as necessary as the requests increase.
+Azure Functions integrates with an array of cloud services to provide feature-rich implementations. The following are the common scenarios for Azure Functions:
+Building a web API
+Processing to database changes
+Processing IoT data streams
+Managing message queues
+Node.js version compatibility table for project type
+Agents Toolkit version	Project Type	Supported Node.js versions
+5.0.0	Notify with http or timer trigger
+Azure functions
+SPFx
+Non-SPFx	16, 18
+16, 18
+16
+16, 18
+4.2.2	Notify with http or timer trigger
+Azure functions
+SPFx	14, 16, 18 (Preview)
+14, 16, 18 (Preview)
+16
+14, 16, 18
+4.2.0	SPFx	16
+4.0.3	SPFx	14, 16
+4.0.0	Non-SPFx	14, 16
+3.7.0	SPFx	12, 14
+<3.7.0	SPFx
+Azure functions
+Other	10, 12, 14
+10, 12, 14
+10, 12, 14, 16
